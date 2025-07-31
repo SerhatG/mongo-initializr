@@ -6,6 +6,14 @@ MI_ENTRYPOINT_DB_PREVIOUS_FILES_HASH_FILE="${MI_ENTRYPOINT_DB_DIRECTORY}"/mi.pre
 
 # Only if the appropriate properties are set will we do a wipe
 if [[ "${MI_ENTRYPOINT_WIPE_DB_ON_CHANGES}" == 'true' ]]; then
+  # Determine hash of current files if a custom hash is not given
+  if [[ -z "${MI_ENTRYPOINT_CURRENT_FILES_HASH-}" ]]; then
+    MI_ENTRYPOINT_CURRENT_FILES_HASH=$(find "${MI_SOURCE_FOLDER}" -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
+    echo '# Files hash automatically determined based on source code: '"${MI_ENTRYPOINT_CURRENT_FILES_HASH}"
+  else
+    echo '# Files hash has been provided: '"${MI_ENTRYPOINT_CURRENT_FILES_HASH}"
+  fi
+
   # Do some sanity checks to see a mongo DB is present in the expected place before wiping
   # These are the same files the mongo entrypoint checks on before running the initdb step.
   if [[ -f "${MI_ENTRYPOINT_DB_DIRECTORY}"/WiredTiger && -d "${MI_ENTRYPOINT_DB_DIRECTORY}"/journal && -f "${MI_ENTRYPOINT_DB_DIRECTORY}"/storage.bson ]]; then
@@ -13,6 +21,7 @@ if [[ "${MI_ENTRYPOINT_WIPE_DB_ON_CHANGES}" == 'true' ]]; then
     [[ -f "${MI_ENTRYPOINT_DB_PREVIOUS_FILES_HASH_FILE}" ]] && PREVIOUS_FILES_HASH=$(<"${MI_ENTRYPOINT_DB_PREVIOUS_FILES_HASH_FILE}")
 
     # If files hash is different, remove files echoing explicitly what is removed
+    echo '# Previously stored files hash: '"${PREVIOUS_FILES_HASH}"
     if [[ "${PREVIOUS_FILES_HASH}" != "${MI_ENTRYPOINT_CURRENT_FILES_HASH}" ]]; then
       echo '# Files hash has changed, wiping old data..'
       rm -rfv "${MI_ENTRYPOINT_DB_DIRECTORY}"/*
