@@ -11,12 +11,12 @@ DEFAULT_MONGO_PORT="27017"
 
 
 INPUT_FILE="${DEFAULT_INPUT_FILE}"
-DATA_FOLDER="${DEFAULT_DATA_FOLDER}"
-MONGO_HOST="${DEFAULT_MONGO_HOST}"
-MONGO_PORT="${DEFAULT_MONGO_PORT}"
-MONGO_USER=""
-MONGO_PASS=""
-DATABASE_NAME=""
+export DATA_FOLDER="${DEFAULT_DATA_FOLDER}"
+export MONGO_HOST="${DEFAULT_MONGO_HOST}"
+export MONGO_PORT="${DEFAULT_MONGO_PORT}"
+export MONGO_USER=""
+export MONGO_PASS=""
+export DATABASE_NAME=""
 DATABASE_VERSION=""
 
 
@@ -132,27 +132,14 @@ clean_database() {
 
 # Function to add handle all entries in the input file
 handle_input_file() {
-    jq -r '.[] | "\(.collection) \(.path)"' "${INPUT_FILE}" | while read collection path; do
-        _log "Processing dbdata file '${path}'"
-        add_json_to_collection "${collection}" "${path}"
-    done
-}
-
-# Function to add JSON data to a collection
-add_json_to_collection() {
-    local collection="${1}"
-    local filename="${DATA_FOLDER}/${2}.gz"
-
-    # Check if the JSON filename exists
-    if [[ -f "${filename}" ]]; then
-        # Add JSON data to the collection. Use mongoimport to create the collection and add data
-        _mongoimport "${filename}" --collection ${collection} --jsonArray --upsert --upsertFields "_id"
-
-        _log "'${filename}' is added to '${collection}'"
-    else
-        _log "Error: JSON file '$filename' not found."
-        exit 1
-    fi
+    jq -r '.[] | "\(.collection):\(.path)"' "${INPUT_FILE}" \
+        | parallel \
+          --jobs "${MI_DBDATA_IMPORT_JOBS}" \
+          --halt now,fail=1 \
+          --linebuffer \
+          --colsep ':' \
+          --tagstring '{2}' \
+          'source "'"${SCRIPT_DIR}"'"/include.functions.sh; _log "Processing dbdata file"; _mongoimport_add_json_to_collection "{1}" "{2}"'
 }
 
 # Function to add the constants to the database
